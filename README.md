@@ -1,5 +1,7 @@
 # (Unofficial) SSG3021X function generator control library
 
+![SSG3021X function generator](https://github.com/tspspi/pyssg3021x/blob/master/doc/devicephoto.png)
+
 This is a simple (currently incomplete) implementation of
 the [FunctionGenerator baseclass](https://github.com/tspspi/pylabdevs/blob/master/src/labdevices/functiongenerator.py)
 of the [pylabdevs base classes](https://github.com/tspspi/pylabdevs) for the
