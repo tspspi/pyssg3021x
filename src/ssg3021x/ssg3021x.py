@@ -177,11 +177,3 @@ class SSG3021X(FunctionGenerator):
             return True
         else:
             return False
-
-if __name__ == "__main__":
-    with SSG3021X("10.4.1.11") as ssg:
-        print(ssg._is_channel_enabled())
-        ssg._set_channel_enabled(enable = False)
-        print(ssg._is_channel_enabled())
-        ssg._set_channel_enabled(enable = True)
-        print(ssg._is_channel_enabled())
