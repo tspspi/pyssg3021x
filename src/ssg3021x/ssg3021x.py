@@ -1,5 +1,6 @@
 from labdevices.functiongenerator import FunctionGenerator, FunctionGeneratorWaveform, FunctionGeneratorModulation
 from labdevices.exceptions import CommunicationError_ProtocolViolation, CommunicationError_Timeout, CommunicationError_NotConnected
+from labdevices.scpi import SCPIDeviceEthernet
 
 from time import sleep
 
@@ -16,12 +17,7 @@ class SSG3021X(FunctionGenerator):
 
             logger = None
     ):
-        if not isinstance(address, str):
-            raise ValueError(f"Address {address} is invalid")
-        if not isinstance(port, int):
-            raise ValueError("Port is not an integer")
-        if (port <= 0) or (port > 65535):
-            raise ValueError(f"Port {port} is invalid")
+        self._scpi = SCPIDeviceEthernet(address, port, logger)
 
         self._usedConnect = False
         self._usedContext = False
@@ -41,28 +37,10 @@ class SSG3021X(FunctionGenerator):
             ]
         )
 
-        self._address = address
-        self._port = port
-        self._socket = None
-
         atexit.register(self.__close)
 
     def _connect(self, address = None, port = None):
-        if self._socket is None:
-            if address is not None:
-                if not isinstance(address, str):
-                    raise ValueError(f"Invalid address {address}")
-                self._address = address
-            if port is not None:
-                if not isinstance(port, int):
-                    raise ValueError("Port is not an integer")
-                if (port <= 0) or (port > 65535):
-                    raise ValueError(f"Port number {port} is invalid")
-                self._port = port
-
-            self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self._socket.connect((self._address, self._port))
-
+        if self._scpi.connect():
             # Ask for identity and verify
             v = self._id()
             self._serialno = v['serial']
@@ -71,16 +49,10 @@ class SSG3021X(FunctionGenerator):
         return True
 
     def _disconnect(self):
-        if self._socket is not None:
-            self._socket.shutdown(socket.SHUT_RDWR)
-            self._socket.close()
-            self._socket = None
+        self._scpi.disconnect()
 
     def _isConnected(self):
-        if self._socket is not None:
-            return True
-        else:
-            return False
+        return self._scpi.isConnected()
 
     def __enter__(self):
         if self._usedConnect:
@@ -99,31 +71,8 @@ class SSG3021X(FunctionGenerator):
             # TODO: Disable output port
             self._disconnect()
 
-    # SCPI base functions
-
-    def _scpi_command(self, command):
-        if not self._isConnected():
-            raise CommunicationError_NotConnected("Device is not connected")
-        self._socket.sendall((command + "\n").encode())
-        readData = ""
-
-        # TODO: Timeout handling
-        while True:
-            dataBlock = self._socket.recv(4096*10)
-            dataBlockStr = dataBlock.decode("utf-8")
-            readData = readData + dataBlockStr
-            if dataBlockStr[-1] == '\n':
-                break
-        return readData.strip()
-
-    def _scpi_command_noreply(self, command):
-        if not self._isConnected():
-            raise CommunicationError_NotConnected("Device is not connected")
-        self._socket.sendall((command+"\n").encode())
-        return
-
     def _id(self):
-        res = self._scpi_command("*IDN?")
+        res = self._scpi.scpiQuery("*IDN?")
         res = res.split(",")
         if len(res) != 4:
             raise CommunicationError_ProtocolViolation("IDN string does not follow siglents layout")
@@ -154,25 +103,25 @@ class SSG3021X(FunctionGenerator):
     def _get_channel_waveform(self, channel = None):
         return FunctionGeneratorWaveform.SINE
     def _set_channel_frequency(self, channel = None, frequency = None):
-        self._scpi_command_noreply(f"FREQ {frequency}")
+        self._scpi.scpiCommand(f"FREQ {frequency}")
         return True
     def _get_channel_frequency(self, channel = None):
-        dta = self._scpi_command("FREQ?")
+        dta = self._scpi.scpiQuery("FREQ?")
         return float(dta)
     def _set_channel_amplitude(self, channel = None, amplitude = None):
-        self._scpi_command_noreply(f"POW {amplitude}")
+        self._scpi.scpiCommand(f"POW {amplitude}")
         return True
     def _get_channel_amplitude(self, channel = None):
-        dta = self._scpi_command("POW?")
+        dta = self._scpi.scpiQuery("POW?")
         return float(dta)
     def _set_channel_enabled(self, channel = None, enable = None):
         if enable:
-            self._scpi_command_noreply(":OUTP ON")
+            self._scpi.scpiCommand(":OUTP ON")
         else:
-            self._scpi_command_noreply(":OUTP OFF")
+            self._scpi.scpiCommand(":OUTP OFF")
         return True
     def _is_channel_enabled(self, channel = None):
-        res = self._scpi_command(":OUTP?")
+        res = self._scpi.scpiQuery(":OUTP?")
         if int(res) == 1:
             return True
         else:
